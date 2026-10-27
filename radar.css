@@ -1,0 +1,254 @@
+/* Agent Radar canvas. Colors come from each node's tone (--tc) and the
+   surface theme variables, so light and dark themes both work. */
+
+[data-role='agent-radar'] {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	width: 100%;
+	max-width: none;
+	margin: 0;
+	padding: 2px 0 8px;
+	font-size: 13px;
+
+	.ar-stats {
+		display: flex;
+		gap: 6px;
+		padding: 0 2px 6px;
+	}
+
+	.ar-stat {
+		flex: 1 1 0;
+		min-width: 0;
+		display: flex;
+		flex-direction: column;
+		gap: 2px;
+		padding: 8px 10px;
+		border-radius: 6px;
+		border: 1px solid transparent;
+		background: rgb(from var(--sf-neutral) r g b / 8%);
+		cursor: pointer;
+	}
+
+	.ar-stat:hover {
+		background: rgb(from var(--tc) r g b / 12%);
+	}
+
+	.ar-stat.ar-on {
+		border-color: var(--tc);
+		background: rgb(from var(--tc) r g b / 14%);
+	}
+
+	.ar-stat-top {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+	}
+
+	.ar-stat-value {
+		font-family: var(--mono);
+		font-size: 18px;
+		font-weight: 600;
+	}
+
+	.ar-stat-label {
+		font-size: 11px;
+		color: var(--sf-c-muted);
+		white-space: nowrap;
+	}
+
+	.ar-dot {
+		flex: none;
+		width: 7px;
+		height: 7px;
+		border-radius: 50%;
+		background: var(--tc);
+	}
+
+	.ar-head {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		padding: 10px 10px 4px;
+	}
+
+	.ar-head-label {
+		font-size: 10px;
+		font-weight: 600;
+		letter-spacing: 1px;
+		color: var(--tc);
+		white-space: nowrap;
+	}
+
+	.ar-head-count {
+		font-family: var(--mono);
+		font-size: 10px;
+		color: var(--sf-c-dim);
+	}
+
+	.ar-rule {
+		flex: 1 1 auto;
+		height: 1px;
+		background: rgb(from var(--sf-neutral) r g b / 18%);
+	}
+
+	.ar-sec {
+		display: flex;
+		flex-direction: column;
+		gap: 2px;
+	}
+
+	.ar-row {
+		display: flex;
+		flex-direction: column;
+		gap: 3px;
+		padding: 7px 10px 7px 8px;
+		border-left: 2px solid transparent;
+		border-radius: 6px;
+		cursor: pointer;
+	}
+
+	.ar-row:hover {
+		background: rgb(from var(--tc) r g b / 10%);
+	}
+
+	.ar-row.ar-cur {
+		background: rgb(from var(--sf-neutral) r g b / 10%);
+	}
+
+	.ar-row.ar-wait {
+		border-left-color: var(--tc);
+		background: rgb(from var(--tc) r g b / 9%);
+	}
+
+	.ar-l1 {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		min-width: 0;
+	}
+
+	.ar-name {
+		flex: none;
+		max-width: 60%;
+		font-weight: 600;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+
+	.ar-idle .ar-name,
+	.ar-exited .ar-name {
+		font-weight: 400;
+		color: var(--sf-c-muted);
+	}
+
+	.ar-branch {
+		flex: 0 100 auto;
+		min-width: 0;
+		font-family: var(--mono);
+		font-size: 11px;
+		color: var(--sf-c-muted);
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+
+	.ar-fill {
+		flex: 1 1 auto;
+	}
+
+	.ar-where,
+	.ar-age {
+		flex: none;
+		font-family: var(--mono);
+		font-size: 11px;
+		color: var(--sf-c-dim);
+		white-space: nowrap;
+	}
+
+	.ar-wait .ar-age {
+		color: var(--tc);
+	}
+
+	.ar-msg {
+		padding-left: 15px;
+		font-size: 12px;
+		color: var(--sf-c-muted);
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+
+	.ar-msg.ar-err {
+		color: var(--sf-c-error);
+	}
+
+	.ar-empty,
+	.ar-none {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 8px;
+		padding: 48px 24px;
+		text-align: center;
+	}
+
+	.ar-empty-title {
+		font-weight: 600;
+	}
+
+	.ar-empty-text {
+		font-size: 12px;
+		color: var(--sf-c-muted);
+	}
+
+	.ar-btn {
+		padding: 5px 12px;
+		border-radius: 6px;
+		border: 1px solid rgb(from var(--sf-neutral) r g b / 30%);
+		cursor: pointer;
+	}
+}
+
+[data-role='agent-radar-dock'] {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	width: 100%;
+	padding: 2px 4px;
+
+	.ar-segs {
+		display: flex;
+		gap: 2px;
+		padding: 2px;
+		border-radius: 6px;
+		background: rgb(from var(--sf-neutral) r g b / 8%);
+	}
+
+	.ar-seg {
+		padding: 2px 10px;
+		border-radius: 4px;
+		font-size: 11px;
+		color: var(--sf-c-dim);
+		cursor: pointer;
+	}
+
+	.ar-seg.ar-on {
+		color: inherit;
+		background: rgb(from var(--sf-neutral) r g b / 16%);
+	}
+
+	.ar-fill {
+		flex: 1 1 auto;
+	}
+
+	.ar-hint {
+		font-size: 11px;
+		color: var(--sf-c-dim);
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		min-width: 0;
+	}
+}
