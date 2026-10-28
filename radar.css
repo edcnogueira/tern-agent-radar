@@ -9,87 +9,83 @@
 	max-width: none;
 	margin: 0;
 	padding: 2px 0 8px;
+	font-family: var(--sans);
 	font-size: 13px;
 
 	.ar-stats {
 		display: flex;
+		flex-wrap: wrap;
 		gap: 6px;
-		padding: 0 2px 6px;
+		padding: 2px 0 4px;
 	}
 
 	.ar-stat {
-		flex: 1 1 0;
-		min-width: 0;
 		display: flex;
-		flex-direction: column;
-		gap: 2px;
-		padding: 8px 10px;
-		border-radius: 6px;
+		align-items: center;
+		gap: 6px;
+		padding: 4px 10px;
+		border-radius: 999px;
 		border: 1px solid transparent;
-		background: rgb(from var(--sf-neutral) r g b / 8%);
+		background: rgb(from var(--sf-neutral) r g b / 6%);
 		cursor: pointer;
 	}
 
 	.ar-stat:hover {
+		background: rgb(from var(--sf-neutral) r g b / 12%);
+	}
+
+	.ar-stat.ar-hot {
 		background: rgb(from var(--tc) r g b / 12%);
 	}
 
-	.ar-stat.ar-on {
-		border-color: var(--tc);
-		background: rgb(from var(--tc) r g b / 14%);
+	.ar-stat.ar-hot .ar-stat-label {
+		color: var(--tc);
 	}
 
-	.ar-stat-top {
-		display: flex;
-		align-items: center;
-		gap: 6px;
+	.ar-stat.ar-on {
+		border-color: rgb(from var(--tc) r g b / 60%);
 	}
 
 	.ar-stat-value {
 		font-family: var(--mono);
-		font-size: 18px;
+		font-size: 12px;
 		font-weight: 600;
 	}
 
 	.ar-stat-label {
-		font-size: 11px;
+		font-size: 12px;
 		color: var(--sf-c-muted);
 		white-space: nowrap;
 	}
 
 	.ar-dot {
 		flex: none;
-		width: 7px;
-		height: 7px;
+		width: 6px;
+		height: 6px;
 		border-radius: 50%;
 		background: var(--tc);
 	}
 
 	.ar-head {
 		display: flex;
-		align-items: center;
-		gap: 8px;
-		padding: 10px 10px 4px;
+		align-items: baseline;
+		gap: 6px;
+		padding: 12px 12px 4px;
 	}
 
 	.ar-head-label {
-		font-size: 10px;
-		font-weight: 600;
-		letter-spacing: 1px;
+		font-size: 12px;
+		font-weight: 500;
 		color: var(--tc);
 		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
 	}
 
 	.ar-head-count {
 		font-family: var(--mono);
-		font-size: 10px;
+		font-size: 12px;
 		color: var(--sf-c-dim);
-	}
-
-	.ar-rule {
-		flex: 1 1 auto;
-		height: 1px;
-		background: rgb(from var(--sf-neutral) r g b / 18%);
 	}
 
 	.ar-sec {
@@ -102,14 +98,14 @@
 		display: flex;
 		flex-direction: column;
 		gap: 3px;
-		padding: 7px 10px 7px 8px;
-		border-left: 2px solid transparent;
-		border-radius: 6px;
+		padding: 6px 12px;
+		border: 1px solid transparent;
+		border-radius: 8px;
 		cursor: pointer;
 	}
 
 	.ar-row:hover {
-		background: rgb(from var(--tc) r g b / 10%);
+		background: rgb(from var(--sf-neutral) r g b / 8%);
 	}
 
 	.ar-row.ar-cur {
@@ -117,21 +113,73 @@
 	}
 
 	.ar-row.ar-wait {
-		border-left-color: var(--tc);
-		background: rgb(from var(--tc) r g b / 9%);
+		gap: 6px;
+		margin: 2px 0;
+		padding: 10px 12px;
+		border-color: rgb(from var(--tc) r g b / 22%);
+		border-radius: 10px;
+		background: rgb(from var(--tc) r g b / 6%);
 	}
 
-	.ar-l1 {
+	.ar-row.ar-wait:hover {
+		background: rgb(from var(--tc) r g b / 11%);
+	}
+
+	.ar-l1,
+	.ar-l2 {
 		display: flex;
 		align-items: center;
-		gap: 8px;
+		gap: 10px;
 		min-width: 0;
+	}
+
+	.ar-l2 {
+		padding-left: 22px;
+	}
+
+	.ar-glyph {
+		flex: none;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		box-sizing: border-box;
+		width: 12px;
+		height: 12px;
+		font-size: 11px;
+		font-weight: 700;
+		line-height: 1;
+		color: var(--tc);
+	}
+
+	.ar-wait .ar-glyph {
+		width: 8px;
+		height: 8px;
+		margin: 0 2px;
+		border-radius: 50%;
+		background: var(--tc);
+		box-shadow: 0 0 0 3px rgb(from var(--tc) r g b / 25%);
+	}
+
+	.ar-work .ar-glyph {
+		border-radius: 50%;
+		border: 2px solid rgb(from var(--tc) r g b / 25%);
+		border-top-color: var(--tc);
+		border-right-color: var(--tc);
+	}
+
+	.ar-idle .ar-glyph,
+	.ar-exited .ar-glyph {
+		width: 8px;
+		height: 8px;
+		margin: 0 2px;
+		border-radius: 50%;
+		border: 1.5px solid var(--sf-c-dim);
 	}
 
 	.ar-name {
 		flex: none;
 		max-width: 60%;
-		font-weight: 600;
+		font-weight: 500;
 		white-space: nowrap;
 		overflow: hidden;
 		text-overflow: ellipsis;
@@ -148,7 +196,7 @@
 		min-width: 0;
 		font-family: var(--mono);
 		font-size: 11px;
-		color: var(--sf-c-muted);
+		color: var(--sf-c-dim);
 		white-space: nowrap;
 		overflow: hidden;
 		text-overflow: ellipsis;
@@ -167,17 +215,29 @@
 		white-space: nowrap;
 	}
 
+	.ar-age {
+		color: var(--sf-c-muted);
+	}
+
 	.ar-wait .ar-age {
 		color: var(--tc);
 	}
 
 	.ar-msg {
-		padding-left: 15px;
+		flex: 1 1 auto;
+		min-width: 0;
 		font-size: 12px;
 		color: var(--sf-c-muted);
 		white-space: nowrap;
 		overflow: hidden;
 		text-overflow: ellipsis;
+	}
+
+	.ar-wait .ar-msg {
+		font-size: 13px;
+		line-height: 1.4;
+		color: inherit;
+		white-space: normal;
 	}
 
 	.ar-msg.ar-err {
