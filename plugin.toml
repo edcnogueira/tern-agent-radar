@@ -1,0 +1,8 @@
+schema = 1
+id = "agent-radar"
+name = "Agent Radar"
+version = "0.1.0"
+description = "One pane with every coding agent across sessions, ordered by who needs you; click to jump."
+icon = "compass"
+window = "window.luau"
+styles = ["radar.css"]
