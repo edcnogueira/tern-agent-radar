@@ -53,28 +53,33 @@ flowchart LR
 
 ## Order and states
 
-| Section | States | Order | Tone |
+| Section | States | Order | Row tone and mark |
 | --- | --- | --- | --- |
-| Need you | `waiting_input` | oldest wait first | `warning`, row tinted with a left bar |
-| Working | `working` | longest first | `info` |
-| Done · unseen | turn ended `done` / `failed`, pane not focused since | newest first | `success` / `error` |
-| Idle (collapsed) | `idle` seen, `exited` | most recent first | `muted` |
+| Needs you | `waiting_input` | oldest wait first | `warning`; a card (tinted border and fill) with the question as the main line, location beside the age |
+| Working | `working` | longest first | `info`; a ring |
+| Done | turn ended `done` / `failed`, pane not focused since | newest first | `success` ✓ / `error` ✕ |
+| Idle (collapsed) | `idle` seen, `exited` | most recent first | `muted`; a hollow dot |
 
-The pane currently focused gets a subtle highlight. Stats chips at the top
+Only the section that needs you takes a color in its heading (`warning`);
+the others are `muted`, and nothing draws rules or separators: spacing
+carries the structure. Rows read name, branch and age on the first line; message and
+location on the second. The pane currently focused gets a subtle highlight.
+Stat chips at the top (pills; "need you" is tinted while any agent waits)
 filter to one section; clicking the active chip clears the filter. The dock
-toggles grouping between **Status** (default) and **Session** (sections per
-session, rows sorted by the status order above).
+toggles grouping between **Status** (default) and **Session** (sections
+named after the session, rows sorted by the status order above).
 
-Narrow panes keep the same layout: the branch and the message cut with an
-ellipsis first, the name last. Tern's CSS has no container queries and
-`CanvasInfo` has no size, so there is no separate narrow mode.
+Narrow panes keep the same layout: the chips wrap, the branch and the
+message cut with an ellipsis first, the name last. Tern's CSS has no
+container queries and `CanvasInfo` has no size, so there is no separate
+narrow mode.
 
 ## Interactions
 
 | Action | Behavior |
 | --- | --- |
 | Palette **Agent Radar** (`plugin.agent-radar.open`, `⌥⌘R`) | Opens the canvas beside the focused pane with `focus = false`. When one exists (`cx.canvas:list()`, owner `agent-radar`) in another tab, it moves into this one (`cx.layout:move_to_tab`); when it is in this tab, it takes the focus |
-| Palette **Jump to agent** (`plugin.agent-radar.jump`, `⌥⌘J`) | `cx:pick` with groups Need you / Working / Done / Idle; ↵ jumps without moving the canvas |
+| Palette **Jump to agent** (`plugin.agent-radar.jump`, `⌥⌘J`) | `cx:pick` with groups Needs you / Working / Done / Idle; ↵ jumps without moving the canvas. Items come from `radar.picks`: the detail always says `session › tab` (whatever the canvas grouping) and leads with the question for a waiting agent; agents with the same name get the branch, then the location, then the pane in the label, since typing filters on the label only. Icons are from Tern's own set (`message`, `run`, `check`, `x`, `pause`, `power`) |
 | Click a row | `go=<pane>`: switch to the agent's session and unpark it if parked, focus it, mark it seen, move the canvas into the agent's tab (refused across hosts: then it stays) |
 | Click a stat chip | `filter=<section>`; the active chip clears it |
 | Dock toggle | `group=status` / `group=session`, kept in `tern.kv` |

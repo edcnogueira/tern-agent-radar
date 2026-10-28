@@ -211,8 +211,8 @@ end
 
 local function where_line(r: radar.Row): string
 	local parts: { string } = {}
-	if r.where ~= "" then
-		table.insert(parts, r.where)
+	if r.location ~= "" then
+		table.insert(parts, r.location)
 	end
 	if r.message then
 		table.insert(parts, radar.cut(r.message, 90))
@@ -343,9 +343,6 @@ local function open(cx: WindowCx)
 	end
 end
 
-local GROUPS: { [string]: string } = { wait = "Need you", work = "Working", done = "Done", fail = "Done", idle = "Idle", exited = "Idle" }
-local ICONS: { [string]: string } = { wait = "bell", work = "run", done = "check", fail = "x-circle", idle = "pause", exited = "power" }
-
 local function pick(cx: WindowCx)
 	-- The tick's model lists every agent in jump order, whatever the canvas filter.
 	local model = safe_tick(cx)
@@ -356,25 +353,7 @@ local function pick(cx: WindowCx)
 		cx:toast("info", "No agents running")
 		return
 	end
-	local items: { PickItem } = {}
-	for _, r in model.rows do
-		local detail: { string } = {}
-		if r.where ~= "" then
-			table.insert(detail, r.where)
-		end
-		table.insert(detail, r.age)
-		if r.message then
-			table.insert(detail, radar.cut(r.message, 80))
-		end
-		table.insert(items, {
-			label = r.name,
-			detail = table.concat(detail, " · "),
-			group = GROUPS[r.kind],
-			icon = ICONS[r.kind],
-			current = r.focused,
-			pane = r.pane,
-		})
-	end
+	local items: { PickItem } = radar.picks(model)
 	cx:pick({ items = items, placeholder = "Jump to agent…", icon = "compass", action = "jump" }):next(
 		function(item: PickItem?, _err: string?, cx2: WindowCx?)
 			if item and cx2 and type(item.pane) == "number" then

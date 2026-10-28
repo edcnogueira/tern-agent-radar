@@ -42,6 +42,7 @@ export type Row = {
 	branch: string?,
 	session: string?,
 	where: string,
+	location: string,
 	age: string,
 	message: string?,
 	error: boolean,
@@ -87,10 +88,10 @@ export type Input = {
 
 -- Section order and looks in status grouping.
 local SECTIONS = {
-	{ id = "wait", label = "NEED YOU", tone = "warning" },
-	{ id = "work", label = "WORKING", tone = "info" },
-	{ id = "done", label = "DONE · UNSEEN", tone = "success" },
-	{ id = "idle", label = "IDLE", tone = "muted" },
+	{ id = "wait", label = "Needs you", tone = "warning" },
+	{ id = "work", label = "Working", tone = "muted" },
+	{ id = "done", label = "Done", tone = "muted" },
+	{ id = "idle", label = "Idle", tone = "muted" },
 }
 
 -- Which filter/section a row kind belongs to.
@@ -250,9 +251,7 @@ end
 
 local function age_text(kind: string, seconds: number): string
 	local d = radar.duration(seconds)
-	if kind == "wait" then
-		return "waiting " .. d
-	elseif kind == "work" then
+	if kind == "wait" or kind == "work" then
 		return d
 	elseif d == "<1m" then
 		return "just now"
@@ -300,12 +299,11 @@ function radar.build(input: Input): Model
 			nsessions += 1
 		end
 		local place = if a.parked then "parked" elseif a.tab and input.positions[a.tab] then tostring(input.positions[a.tab]) else nil
-		local where
+		local location = if session and place then session .. " › " .. place else session or place or ""
+		local where = location
 		if input.group == "session" then
 			-- The section already names the session.
 			where = if place == "parked" then "parked" elseif place then "tab " .. place else ""
-		else
-			where = if session and place then session .. " › " .. place else session or place or ""
 		end
 		local since = if m then m.since else input.now
 		local message = radar.headline(a.last_message, 160)
@@ -324,6 +322,7 @@ function radar.build(input: Input): Model
 			branch = input.branches[a.pane],
 			session = session,
 			where = where,
+			location = location,
 			age = age_text(kind, input.now - since),
 			message = message,
 			error = err,
@@ -350,7 +349,7 @@ function radar.build(input: Input): Model
 			local id = if r.session_id then tostring(r.session_id) else "?"
 			local sec = by[id]
 			if sec == nil then
-				sec = { id = "session:" .. id, label = string.upper(r.session or "no session"), tone = "muted", rows = {}, folded = false }
+				sec = { id = "session:" .. id, label = r.session or "No session", tone = "muted", rows = {}, folded = false }
 				by[id] = sec
 				table.insert(list, sec)
 			end
@@ -385,6 +384,98 @@ function radar.build(input: Input): Model
 	end
 
 	return { sections = sections, counts = counts, total = #rows, sessions = nsessions, rows = rows }
+end
+
+export type Pick = {
+	label: string,
+	detail: string,
+	group: string,
+	icon: string,
+	current: boolean,
+	pane: number,
+}
+
+local PICK_GROUP: { [string]: string } = {
+	wait = "Needs you",
+	work = "Working",
+	done = "Done",
+	fail = "Done",
+	idle = "Idle",
+	exited = "Idle",
+}
+
+local PICK_ICON: { [string]: string } = {
+	wait = "message",
+	work = "run",
+	done = "check",
+	fail = "x",
+	idle = "pause",
+	exited = "power",
+}
+
+local function disambiguate(labels: { string }, rows: { Row }, extra: (Row) -> string?): { [number]: boolean }
+	local kinds: { [string]: { [string]: boolean } } = {}
+	local distinct: { [string]: number } = {}
+	for i, r in rows do
+		local l = labels[i]
+		local e = extra(r) or ""
+		local seen = kinds[l] or {}
+		kinds[l] = seen
+		if not seen[e] then
+			seen[e] = true
+			distinct[l] = (distinct[l] or 0) + 1
+		end
+	end
+	local added: { [number]: boolean } = {}
+	for i, r in rows do
+		local e = extra(r)
+		if distinct[labels[i]] > 1 and e and e ~= "" then
+			labels[i] ..= " · " .. e
+			added[i] = true
+		end
+	end
+	return added
+end
+
+function radar.picks(model: Model): { Pick }
+	local labels: { string } = {}
+	for i, r in model.rows do
+		labels[i] = r.name
+	end
+	disambiguate(labels, model.rows, function(r: Row): string?
+		return r.branch
+	end)
+	local located = disambiguate(labels, model.rows, function(r: Row): string?
+		return r.location
+	end)
+	disambiguate(labels, model.rows, function(r: Row): string?
+		return "pane " .. r.pane
+	end)
+
+	local picks: { Pick } = {}
+	for i, r in model.rows do
+		local detail: { string } = {}
+		local message = if r.message then radar.cut(r.message, 80) else nil
+		if message and r.kind == "wait" then
+			table.insert(detail, message)
+		end
+		if r.location ~= "" and not located[i] then
+			table.insert(detail, r.location)
+		end
+		table.insert(detail, r.age)
+		if message and r.kind ~= "wait" then
+			table.insert(detail, message)
+		end
+		table.insert(picks, {
+			label = labels[i],
+			detail = table.concat(detail, " · "),
+			group = PICK_GROUP[r.kind],
+			icon = PICK_ICON[r.kind],
+			current = r.focused,
+			pane = r.pane,
+		})
+	end
+	return picks
 end
 
 return radar

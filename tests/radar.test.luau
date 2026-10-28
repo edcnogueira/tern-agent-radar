@@ -145,7 +145,7 @@ do
 	check("counts idle", m.counts.idle, 2)
 	check("idle folded", m.sections[#m.sections].folded, true)
 	check("filter", kinds(model(now, mem, { now = 100, filter = "done" })), "4:done 3:done")
-	check("age wait", m.sections[1].rows[1].age, "waiting 1m")
+	check("age wait", m.sections[1].rows[1].age, "1m")
 	check("age done", m.sections[3].rows[1].age, "1m ago")
 end
 
@@ -156,9 +156,9 @@ do
 	radar.observe(mem, list, nil, 0)
 	local m = model(list, mem, { group = "session" })
 	check("session count", #m.sections, 2)
-	check("session first", m.sections[1].label, "SETARE")
+	check("session first", m.sections[1].label, "setare")
 	check("session first tone", m.sections[1].tone, "warning")
-	check("session second", m.sections[2].label, "KODACODA")
+	check("session second", m.sections[2].label, "kodacoda")
 	check("session second tone", m.sections[2].tone, "muted")
 	check("session rows", kinds(m), "2:wait 3:work 1:idle")
 	check("sessions", m.sessions, 2)
@@ -189,6 +189,55 @@ do
 	check("delivery error flag", by[3].error, true)
 	check("wait fallback", by[4].message, "Waiting for your input")
 	check("unknown session", by[4].where, "")
+end
+
+do
+	local mem = {}
+	local list = {
+		agent(1, "waiting_input", { cwd = "/w/api", last_message = "Allow migrate?" }),
+		agent(2, "working", { cwd = "/w/web", session = 2, tab = 20, last_message = "Edit a.tsx" }),
+		agent(3, "idle", { cwd = "/w/docs", parked = true }),
+	}
+	radar.observe(mem, list, nil, 0)
+	local picks = radar.picks(model(list, mem, { group = "session", now = 300 }))
+	check("pick order", picks[1].pane .. picks[2].pane .. picks[3].pane, "123")
+	check("pick wait detail", picks[1].detail, "Allow migrate? · setare › 1 · 5m")
+	check("pick work detail", picks[2].detail, "kodacoda › 2 · 5m · Edit a.tsx")
+	check("pick parked detail", picks[3].detail, "setare › parked · 5m ago")
+	check("pick groups", picks[1].group .. "/" .. picks[2].group .. "/" .. picks[3].group, "Needs you/Working/Idle")
+	check("pick label", picks[1].label, "api")
+end
+
+do
+	local mem = {}
+	local list = {
+		agent(1, "working", { cwd = "/a/api" }),
+		agent(2, "working", { cwd = "/b/api" }),
+		agent(3, "working", { cwd = "/c/api", session = 2, tab = 20 }),
+		agent(4, "working", { cwd = "/d/api", session = 2, tab = 20 }),
+		agent(5, "working", { cwd = "/w/web" }),
+	}
+	radar.observe(mem, list, nil, 0)
+	local m = model(list, mem, { branches = { [1] = "main", [2] = "PP-18/x", [3] = "main", [4] = "main" } })
+	local by = {}
+	for _, p in radar.picks(m) do
+		by[p.pane] = p.label
+	end
+	check("pick label by branch", by[2], "api · PP-18/x")
+	check("pick label by location", by[1], "api · main · setare › 1")
+	check("pick label by pane", by[3], "api · main · kodacoda › 2 · pane 3")
+	check("pick label by pane too", by[4], "api · main · kodacoda › 2 · pane 4")
+	check("pick label unique", by[5], "web")
+end
+
+do
+	local mem = {}
+	local list = { agent(1, "working", { cwd = "/a/api" }), agent(2, "working", { cwd = "/a/api", tab = 20 }) }
+	radar.observe(mem, list, nil, 0)
+	local picks = radar.picks(model(list, mem, { branches = { [1] = "main", [2] = "main" }, now = 60 }))
+	check("pick same branch label", picks[1].label, "api · setare › 1")
+	check("pick same branch label 2", picks[2].label, "api · setare › 2")
+	check("pick located detail", picks[1].detail, "1m")
 end
 
 -- Helpers.

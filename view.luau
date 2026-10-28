@@ -23,40 +23,53 @@ end
 local function stats(model: radar.Model, filter: string?): Node
 	local chips: { Node } = {}
 	for _, s in STATS do
-		local on = filter == s.id
+		local n = (model.counts :: any)[s.id]
+		local class = "ar-stat"
+		if filter == s.id then
+			class ..= " ar-on"
+		end
+		if s.id == "wait" and n > 0 then
+			class ..= " ar-hot"
+		end
 		table.insert(chips, el("div", {
-			class = if on then "ar-stat ar-on" else "ar-stat",
+			class = class,
 			key = "stat-" .. s.id,
 			tone = s.tone,
 			actions = { click = "filter=" .. s.id },
 		}, {
-			el("div", { class = "ar-stat-top" }, {
-				el("span", { class = "ar-dot" }),
-				text("ar-stat-value", tostring((model.counts :: any)[s.id])),
-			}),
+			el("span", { class = "ar-dot" }),
+			text("ar-stat-value", tostring(n)),
 			text("ar-stat-label", s.label),
 		}))
 	end
 	return el("div", { class = "ar-stats", key = "stats" }, chips)
 end
 
+local GLYPH: { [string]: string } = { done = "✓", fail = "✕" }
+
 local function row(r: radar.Row): Node
+	local wait = r.kind == "wait"
+	local where_below = r.message ~= nil and not wait
 	local line: { Node } = {
-		el("span", { class = "ar-dot" }),
+		el("span", { class = "ar-glyph", text = GLYPH[r.kind] }),
 		text("ar-name", r.name),
 	}
 	if r.branch then
-		table.insert(line, text("ar-branch", "⎇ " .. r.branch))
+		table.insert(line, text("ar-branch", r.branch))
 	end
 	table.insert(line, el("span", { class = "ar-fill" }))
-	if r.where ~= "" then
+	if r.where ~= "" and not where_below then
 		table.insert(line, text("ar-where", r.where))
 	end
 	table.insert(line, text("ar-age", r.age))
 
 	local children: { Node } = { el("div", { class = "ar-l1" }, line) }
 	if r.message then
-		table.insert(children, text(if r.error then "ar-msg ar-err" else "ar-msg", r.message))
+		local l2: { Node } = { text(if r.error then "ar-msg ar-err" else "ar-msg", r.message) }
+		if r.where ~= "" and where_below then
+			table.insert(l2, text("ar-where", r.where))
+		end
+		table.insert(children, el("div", { class = "ar-l2" }, l2))
 	end
 	local class = "ar-row ar-" .. r.kind
 	if r.focused then
@@ -74,7 +87,6 @@ local function head(sec: radar.Section): Node
 	return el("div", { class = "ar-head", tone = sec.tone }, {
 		text("ar-head-label", sec.label),
 		text("ar-head-count", tostring(#sec.rows)),
-		el("span", { class = "ar-rule" }),
 	})
 end
 

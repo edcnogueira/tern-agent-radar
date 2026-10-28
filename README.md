@@ -20,7 +20,7 @@ It has only a window half, so install it on the machine whose Tern windows you u
 | Click an agent | Switches to its session, takes it out of the deck if it was parked, focuses it. The radar moves along into that tab, so it stays in view |
 | Click a count at the top | Shows only that group; click it again to show all |
 | **Status** / **Session** at the bottom | Groups by state (default) or by session |
-| **Jump to agent** (palette, `⌥⌘J`) | A picker of every agent, grouped like the radar, for the keyboard. It doesn't move the radar |
+| **Jump to agent** (palette, `⌥⌘J`) | A picker of every agent, grouped like the radar, for the keyboard. A waiting agent shows its question first; agents in the same folder get their branch or `session › tab` in the name, so typing tells them apart. It doesn't move the radar |
 | Status line | `N need you`, `N working`, `N done` while any agent runs; a click runs **Agent Radar** |
 | Toast | `<project> needs you` when an agent starts waiting for input, unless its pane is focused. **Agent Radar: turn waiting toasts on or off** in the palette switches it |
 
@@ -30,12 +30,12 @@ Agents are grouped and ordered by who needs you:
 
 | Group | Agents | Order |
 | --- | --- | --- |
-| Need you | Waiting for input | Longest wait first |
+| Needs you | Waiting for input, as a card with the agent's question | Longest wait first |
 | Working | Running a turn | Longest first |
-| Done · unseen | Turn ended (done, or failed in red) and you haven't focused the pane since | Newest first |
+| Done | Turn ended (done, or failed in red) and you haven't focused the pane since | Newest first |
 | Idle (folded) | Idle agents you've seen, and exited ones | Newest first |
 
-Each row has the project (the agent's folder name), its git branch, where it is (`session › tab`, or `parked`), how long it has been in that state, and the first line of the agent's last message (omp agents; others have none). The pane you're in is highlighted.
+Each row has the project (the agent's folder name), its git branch, how long it has been in that state, the first line of the agent's last message (omp agents; others have none) and where it is (`session › tab`, or `parked`). A mark before the name tells the state: a ring while working, a check or a cross when a turn ended, a hollow dot when idle. The pane you're in is highlighted.
 
 ## Limits
 
