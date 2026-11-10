@@ -28,12 +28,16 @@ local shown_counts = ""
 -- Canvas JSON last set per canvas pane, so unchanged views aren't sent again.
 local drawn: { [number]: string } = {}
 
+-- The radar's place at the last look: its tab's panes and splits, and its width there.
+local seen: { shape: string, share: number }? = nil
+
 local function kv(key: string): any
 	local ok, value = pcall(tern.kv.get, key)
 	return if ok then value else nil
 end
 
-type Settings = { group: string, filter: string?, toasts: boolean }
+-- `width` is the radar's share of its tab's width, as the user last set it.
+type Settings = { group: string, filter: string?, toasts: boolean, width: number? }
 
 local function settings(): Settings
 	local s = kv("settings")
@@ -42,11 +46,17 @@ local function settings(): Settings
 		group = if t.group == "session" then "session" else "status",
 		filter = if type(t.filter) == "string" then t.filter else nil,
 		toasts = t.toasts ~= false,
+		width = if type(t.width) == "number" and t.width > 0 and t.width < 1 then t.width else nil,
 	}
 end
 
 local function save_settings(s: Settings)
-	tern.kv.set("settings", { group = s.group, filter = s.filter or tern.json.null, toasts = s.toasts })
+	tern.kv.set("settings", {
+		group = s.group,
+		filter = s.filter or tern.json.null,
+		toasts = s.toasts,
+		width = s.width or tern.json.null,
+	})
 end
 
 -- Reads the shared memory again (another window may have changed it).
@@ -171,6 +181,74 @@ local function owned(cx: WindowCx): { number }
 	return panes
 end
 
+-- Where the radar sits: its share of its tab's width, the side its divider is
+-- on, and the tab's panes and splits. Nil while it has no width of its own:
+-- alone in its tab, floating or parked.
+local function place(cx: WindowCx, canvas: number): (number?, Dir?, string?)
+	local tab = cx.session:tab_of(canvas)
+	local layout = if tab then cx.session:layout(tab) else nil
+	if tab == nil or layout == nil then
+		return nil, nil, nil
+	end
+	local root: radar.Tree = layout.root :: any
+	local share, side = radar.share(root, canvas)
+	if share == nil or side == nil then
+		return nil, nil, nil
+	end
+	return share, side :: any, canvas .. "@" .. tab .. radar.shape(root)
+end
+
+-- Resizes the radar until it takes `want` of its tab's width. Tern resizes by
+-- cells, and n cells scale the pane's width by 1 + n / c, where c is a column
+-- count from the pane's last layout that a plugin can't read. So each step
+-- learns c from what the step before did, from a low first guess: a high one
+-- overshoots into Tern's smallest pane size.
+local function fit(cx: WindowCx, canvas: number, want: number)
+	local cols = 20
+	for _ = 1, 6 do
+		local have, side = place(cx, canvas)
+		if have == nil or side == nil then
+			return
+		end
+		local cells = math.round((want / have - 1) * cols)
+		if cells == 0 or not cx.layout:resize(canvas, side, cells) then
+			return
+		end
+		local now = place(cx, canvas)
+		if now == nil or (now - have) * cells <= 0 then
+			return
+		end
+		cols = math.clamp(cells / (now / have - 1), 5, 1000)
+	end
+end
+
+-- Keeps the radar at the width the user gives it. Its share changing while
+-- its tab holds the same panes and splits is a divider dragged: the new
+-- width. Any other way the radar comes to be wider (a pane beside it closed
+-- or moved away, it landed in another tab) is nobody's choice of a width,
+-- and it goes back.
+local function watch(cx: WindowCx, s: Settings, canvas: number)
+	local share, _, shape = place(cx, canvas)
+	if share == nil or shape == nil then
+		seen = nil
+		return
+	end
+	local width = s.width
+	if width == nil then
+		s.width = share
+		save_settings(s)
+	elseif seen and seen.shape == shape then
+		if math.abs(share - seen.share) > 0.0005 then
+			s.width = share
+			save_settings(s)
+		end
+	elseif share > width then
+		fit(cx, canvas, width)
+		share = place(cx, canvas) or share
+	end
+	seen = { shape = shape, share = share }
+end
+
 local function model_of(cx: WindowCx, list: { radar.Agent }, now: number, s: Settings): radar.Model
 	local sessions: { { id: number, name: string } } = {}
 	for _, info in cx.session:sessions() do
@@ -193,9 +271,8 @@ local function model_of(cx: WindowCx, list: { radar.Agent }, now: number, s: Set
 	})
 end
 
--- Sends the view to every canvas this plugin owns, when it changed.
-local function draw(cx: WindowCx, model: radar.Model, s: Settings)
-	local panes = owned(cx)
+-- Sends the view to the canvases this plugin owns, when it changed.
+local function draw(cx: WindowCx, panes: { number }, model: radar.Model, s: Settings)
 	if #panes == 0 then
 		return
 	end
@@ -220,8 +297,9 @@ local function where_line(r: radar.Row): string
 	return table.concat(parts, " · ")
 end
 
--- One pass: read the agents, update the memory, toast new waits, redraw.
--- Returns the model, for commands that show it another way.
+-- One pass: read the agents, update the memory, toast new waits, note the
+-- radar's width, redraw. Returns the model, for commands that show it
+-- another way.
 local function tick(cx: WindowCx): radar.Model
 	local now = os.time()
 	local list = agents(cx)
@@ -249,7 +327,11 @@ local function tick(cx: WindowCx): radar.Model
 		tern.chrome.refresh()
 	end
 
-	draw(cx, model, s)
+	local panes = owned(cx)
+	if panes[1] then
+		watch(cx, s, panes[1])
+	end
+	draw(cx, panes, model, s)
 	return model
 end
 
@@ -273,16 +355,22 @@ local function find(cx: WindowCx, pane: number): radar.Agent?
 	return nil
 end
 
--- Moves the radar canvas beside the focused block of `tab`, unless it is
--- already in that tab: the radar follows you across tabs and sessions.
-local function bring(cx: WindowCx, tab: number?)
-	local canvas = owned(cx)[1]
-	if canvas == nil or tab == nil or cx.session:tab_of(canvas) == tab then
+-- Moves the radar to the right edge of `tab`, at the width the user gave it,
+-- unless it is already in that tab: the radar follows you across tabs and
+-- sessions.
+local function dock(cx: WindowCx, canvas: number, tab: number?, width: number?)
+	if tab == nil or cx.session:tab_of(canvas) == tab then
 		return
 	end
-	local ok, err = cx.layout:move_to_tab(canvas, tab, { focus = false })
-	if not ok then
-		tern.log.warn("agent-radar: canvas not moved:", err)
+	local layout = cx.session:layout(tab)
+	local edge = if layout then radar.edge(layout.root :: any, layout.focus) else nil
+	if edge == nil or not cx.layout:move(canvas, edge, "right", { focus = false }) then
+		-- Tern refuses a move to another host's tab: the radar stays where it was.
+		tern.log.warn("agent-radar: canvas not moved to tab", tab)
+		return
+	end
+	if width then
+		fit(cx, canvas, width)
 	end
 end
 
@@ -294,6 +382,12 @@ local function jump(cx: WindowCx, pane: number, follow: boolean)
 		cx:toast("error", "That agent is gone")
 		return
 	end
+	local canvas = owned(cx)[1]
+	local s = settings()
+	if canvas then
+		-- A divider dragged since the last tick counts before the radar moves.
+		watch(cx, s, canvas)
+	end
 	if a.parked then
 		if a.session then
 			cx.sessions:switch(a.session)
@@ -301,8 +395,8 @@ local function jump(cx: WindowCx, pane: number, follow: boolean)
 		cx.layout:unpark(pane)
 	end
 	cx.layout:focus(pane)
-	if follow then
-		bring(cx, cx.session:tab_of(pane))
+	if canvas and follow then
+		dock(cx, canvas, cx.session:tab_of(pane), s.width)
 	end
 	load_memory()
 	if radar.see(memory, pane) then
@@ -310,15 +404,18 @@ local function jump(cx: WindowCx, pane: number, follow: boolean)
 	end
 end
 
--- Opens the radar beside the focused pane. When it is open in another tab it
--- moves here; when it is already here it takes the focus.
+-- Opens the radar at the right edge of the focused pane's tab, at the width
+-- the user last gave it. When it is open in another tab it moves here; when
+-- it is already here it takes the focus.
 local function open(cx: WindowCx)
 	local canvas = owned(cx)[1]
+	local focused = cx.session:focused()
+	local here = if focused then cx.session:tab_of(focused) else nil
 	if canvas then
-		local focused = cx.session:focused()
-		local here = if focused then cx.session:tab_of(focused) else nil
 		if here and cx.session:tab_of(canvas) ~= here then
-			bring(cx, here)
+			local s = settings()
+			watch(cx, s, canvas)
+			dock(cx, canvas, here, s.width)
 		else
 			cx.layout:focus(canvas)
 		end
@@ -330,14 +427,26 @@ local function open(cx: WindowCx)
 		return
 	end
 	local s = settings()
-	local pane, err = cx.canvas:open({
+	local spec: CanvasSpec = {
 		title = view.title(model),
 		about = ABOUT,
 		view = view.main(model, s.filter),
 		dock = view.dock(s.group),
 		how = "beside",
 		focus = false,
-	})
+	}
+	local layout = if here then cx.session:layout(here) else nil
+	local edge = if layout then radar.edge(layout.root :: any, layout.focus) else nil
+	if layout and edge then
+		spec.target = edge
+		spec.dir = "right"
+		-- `ratio` is the canvas's share of the pane it splits, not of the tab.
+		local room = radar.share(layout.root :: any, edge)
+		if s.width and room then
+			spec.ratio = math.clamp(s.width / room, 0.1, 0.8)
+		end
+	end
+	local pane, err = cx.canvas:open(spec)
 	if pane == nil then
 		cx:toast("error", "Agent Radar did not open", err)
 	end
@@ -432,13 +541,26 @@ tern.on("agent_finished", function(ev: AgentFinishedEvent, cx: WindowCx)
 	safe_tick(cx)
 end)
 
--- The tick loop starts when the entry loads: a plugin reload does not run
--- window_start again, and each timer callback gets a fresh cx.
+-- Tern reports each change of an agent's state, so the radar shows it at
+-- once; the timer below only keeps up what no event reports.
+tern.on("agent_state", function(_ev: AgentStateEvent, cx: WindowCx)
+	safe_tick(cx)
+end)
+
+-- A pane closing leaves its room to its neighbors: the radar gives it back.
+tern.on("pane_closed", function(_ev: PaneEvent, cx: WindowCx)
+	safe_tick(cx)
+end)
+
+-- The tick loop keeps ages, branches, messages and tab positions current.
+-- It starts when the entry loads (a plugin reload does not run window_start
+-- again) and each callback arms the next one before it ticks: a tick that
+-- runs over the window budget is cut off there, and nothing after it runs.
 local function loop(cx: WindowCx?)
+	tern.timer(TICK_MS, loop)
 	if cx then
 		safe_tick(cx)
 	end
-	tern.timer(TICK_MS, loop)
 end
 tern.timer(100, loop)
 

@@ -10,14 +10,14 @@ A [Tern](https://stencil.so/tern) plugin that shows every coding agent running i
 tern plugin install github.com/edcnogueira/tern-agent-radar
 ```
 
-It has only a window half, so install it on the machine whose Tern windows you use.
+It has only a window half, so install it on the machine whose Tern windows you use. It needs a Tern with the `agent_state` event and the canvas `ratio` option; 0.9.14 has both.
 
 ## Use
 
 | Action | What it does |
 | --- | --- |
-| **Agent Radar** (palette, `⌥⌘R`) | Opens the radar beside the focused pane. When it is already open in another tab or session, it moves here; when it is here, it takes the focus |
-| Click an agent | Switches to its session, takes it out of the deck if it was parked, focuses it. The radar moves along into that tab, so it stays in view |
+| **Agent Radar** (palette, `⌥⌘R`) | Opens the radar at the right edge of the tab, at the width you last gave it. When it is already open in another tab or session, it moves here; when it is here, it takes the focus |
+| Click an agent | Switches to its session, takes it out of the deck if it was parked, focuses it. The radar moves along to the right edge of that tab, at the same width, so it stays in view |
 | Click a count at the top | Shows only that group; click it again to show all |
 | **Status** / **Session** at the bottom | Groups by state (default) or by session |
 | **Jump to agent** (palette, `⌥⌘J`) | A picker of every agent, grouped like the radar, for the keyboard. A waiting agent shows its question first; agents in the same folder get their branch or `session › tab` in the name, so typing tells them apart. It doesn't move the radar |
@@ -37,17 +37,21 @@ Agents are grouped and ordered by who needs you:
 
 Each row has the project (the agent's folder name), its git branch, how long it has been in that state, the first line of the agent's last message (omp agents; others have none) and where it is (`session › tab`, or `parked`). A mark before the name tells the state: a ring while working, a check or a cross when a turn ended, a hollow dot when idle. The pane you're in is highlighted.
 
+## Width
+
+The radar keeps the width you give it. Drag its divider once: it has that width again when it follows you to another tab, when you reopen it, and when a pane beside it closes or moves away and leaves it the room. The width is a share of the tab's width, so it scales with the window.
+
 ## Limits
 
 - **States come from Tern.** Working and waiting come from the progress the agent reports (OSC 9;4); an agent that reports none always looks idle. A failed turn shows as failed only when the agent reports it.
 - **Remote hosts.** Agents on remote hosts attached to the window are listed and you can jump to them, but they show no branch (git runs on this machine), and the radar can't move into a remote host's tab, so it stays where it was.
-- **A background window updates late.** The radar refreshes every 1.5 s on the window's timer; a window macOS has put to sleep catches up when you bring it back.
+- **A background window updates part of it late.** States change on the radar as soon as Tern reports them, in a background window too. Ages, branches, messages and tab positions refresh every 1.5 s on the window's timer, which a window in the background runs late; they catch up when you bring it back.
 - **Tern's own banner stays.** Tern already shows a banner when an agent waits; the toast adds the project and session. Turn the toast off if the banner is enough.
 
 ## What it runs, reads and writes
 
 - **Runs** nothing. Branches come from Tern's git engine (`cx.git`).
-- **Reads and writes** only its own `kv.json` in the plugin data folder: what it remembers per agent (state, since when, whether you've seen the end of its turn) and the grouping, filter and toast settings.
+- **Reads and writes** only its own `kv.json` in the plugin data folder: what it remembers per agent (state, since when, whether you've seen the end of its turn) and the grouping, filter, toast and width settings.
 - **Network:** none.
 
 ## Development

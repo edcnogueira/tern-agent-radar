@@ -28,16 +28,19 @@ keyboard path is the picker command instead.
 
 ```mermaid
 flowchart LR
-  Timer["tern.timer 1.5 s (started at load)"] --> Tick
+  State["agent_state"] --> Tick
   Finished["agent_finished"] --> Tick
+  Closed["pane_closed"] --> Tick
   Focus["focus event"] --> Seen["mark pane seen"] --> Tick
+  Timer["tern.timer 1.5 s (started at load): ages, branches, messages"] --> Tick
   Tick["tick(cx)"] --> List["cx.agents:list()"]
   Tick --> Where["cx.session:sessions / tabs"]
   List & Where --> Model["radar.luau: classify, order, age"]
   Model --> Canvas["cx.canvas:set (only on change)"]
   Model --> Status["tern.chrome.refresh → status segment"]
   Model --> Toast["cx:toast on → waiting_input"]
-  Click["canvas_action go=pane"] --> Jump["switch + unpark if parked → layout:focus → move canvas to that tab"]
+  Tick --> Width["watch the canvas width: learn a drag, give back a neighbor's room"]
+  Click["canvas_action go=pane"] --> Jump["switch + unpark if parked → layout:focus → dock the canvas at that tab's right edge, at its width"]
 ```
 
 ## Data per row
@@ -74,13 +77,37 @@ message cut with an ellipsis first, the name last. Tern's CSS has no
 container queries and `CanvasInfo` has no size, so there is no separate
 narrow mode.
 
+## Width
+
+The canvas is a pane in a tab's split tree, not a window sidebar like the
+Files pane, so Tern gives it half of whatever it splits each time it moves.
+The radar keeps one width instead: its share of the tab's width
+(`radar.share`: the product of the side-by-side splits above it in
+`cx.session:layout`), stored as `width` in the settings.
+
+| When | What happens |
+| --- | --- |
+| A tick finds the share changed and the tab's panes and splits (`radar.shape`) the same as at the tick before | A divider was dragged: that share is the new width |
+| A tick finds the radar wider than its width any other way | A neighbor closed, parked or moved away, or the radar landed in another tab: `fit` takes it back to its width. A radar left narrower (a pane opened in its place) is left alone |
+| The canvas moves to another tab (row click, **Agent Radar**) | `cx.layout:move` to the right of the tab's right-edge pane (`radar.edge`), then `fit` |
+| The canvas opens | `cx.canvas:open` with `target` that pane, `dir = "right"` and `ratio` = width ÷ that pane's share |
+
+`fit` uses `cx.layout:resize`, which counts cells: n cells scale the pane's
+width by 1 + n / c, where c is a column count from the pane's last layout
+(measured: from 0.10 of the tab, +32 cells gave 0.2067 on a pane 30 columns
+wide; right after a move, c was 70 for a pane 37 columns wide). The window
+half can't read c, so `fit` starts from a low guess (a high one overshoots
+into Tern's smallest pane size), learns c from each step and lands within a
+cell in two or three; all of it runs in one call, so no frame shows the
+steps. Alone in its tab, floating or parked, the radar has no width to keep.
+
 ## Interactions
 
 | Action | Behavior |
 | --- | --- |
-| Palette **Agent Radar** (`plugin.agent-radar.open`, `⌥⌘R`) | Opens the canvas beside the focused pane with `focus = false`. When one exists (`cx.canvas:list()`, owner `agent-radar`) in another tab, it moves into this one (`cx.layout:move_to_tab`); when it is in this tab, it takes the focus |
+| Palette **Agent Radar** (`plugin.agent-radar.open`, `⌥⌘R`) | Opens the canvas at the right edge of the focused pane's tab, at its width, with `focus = false`. When one exists (`cx.canvas:list()`, owner `agent-radar`) in another tab, it docks in this one; when it is in this tab, it takes the focus |
 | Palette **Jump to agent** (`plugin.agent-radar.jump`, `⌥⌘J`) | `cx:pick` with groups Needs you / Working / Done / Idle; ↵ jumps without moving the canvas. Items come from `radar.picks`: the detail always says `session › tab` (whatever the canvas grouping) and leads with the question for a waiting agent; agents with the same name get the branch, then the location, then the pane in the label, since typing filters on the label only. Icons are from Tern's own set (`message`, `run`, `check`, `x`, `pause`, `power`) |
-| Click a row | `go=<pane>`: switch to the agent's session and unpark it if parked, focus it, mark it seen, move the canvas into the agent's tab (refused across hosts: then it stays) |
+| Click a row | `go=<pane>`: switch to the agent's session and unpark it if parked, focus it, mark it seen, dock the canvas at the right edge of the agent's tab at its width (refused across hosts: then it stays) |
 | Click a stat chip | `filter=<section>`; the active chip clears it |
 | Dock toggle | `group=status` / `group=session`, kept in `tern.kv` |
 | Status line segment | Counts for need-you / working / done; click runs `plugin.agent-radar.open` |
@@ -100,19 +127,27 @@ narrow mode.
   the surface variables (`--sf-c-*`, `--sf-neutral`), so light and dark
   themes both work.
 - **Budgets.** Window calls get 50 ms, chrome formatters 4 ms. A tick took
-  2–8 ms with five agents in a dev window, with one 43 ms outlier while the
-  window was asleep in the background; a trip would stop the timer until the
-  next reload. The status formatter only reads counts the tick computed.
+  2–8 ms with five agents in a dev window, but the log of a window in daily
+  use shows the timer hook over 50 ms about once a day (a wake from sleep, a
+  busy machine). A trip cuts the call off where it is (`pcall` does not catch
+  it) and pauses the hook for 5 s or more, so the loop arms the next timer
+  before it ticks: armed after, one trip ended the loop until the next
+  reload. The status formatter only reads counts the tick computed.
+- **Events first.** `agent_state` drives the states: a window in the
+  background runs its timers late (one callback in 11 s in an idle dev
+  window), but it still delivers events as panes report. The timer keeps up
+  what no event reports: ages, branches, messages, tab positions.
 - **Pure core.** `radar.luau` turns `{agents, memory, sessions, positions,
-  branches, focused, now, group, filter}` into an ordered model without
-  touching `tern`, so it is tested with the plain `luau` CLI.
+  branches, focused, now, group, filter}` into an ordered model and reads a
+  tab's split tree (`share`, `edge`, `shape`) without touching `tern`, so it
+  is tested with the plain `luau` CLI.
 
 Files:
 
 ```
 plugin.toml        window entry and styles only
-window.luau        commands, timer, events, canvas wiring
-radar.luau         pure model: transitions, classify, order, ages, text cuts
+window.luau        commands, timer, events, canvas wiring, width keeping
+radar.luau         pure model: transitions, classify, order, ages, text cuts, split tree
 view.luau          model → tern.ui nodes (list, folded idle, empty state)
 radar.css          canvas styles
 tests/radar.test.luau
@@ -120,8 +155,9 @@ tests/radar.test.luau
 
 ## API behaviors it relies on
 
-Checked in a running Tern 0.9.5 (isolated dev window with fake agents that
-report OSC 9;4 progress), where the docs don't settle them:
+Checked in a running Tern (1 to 8 in 0.9.5, 9 to 14 in 0.9.14; an isolated
+dev window with fake agents that report OSC 9;4 progress), where the docs
+don't settle them:
 
 1. `cx.layout:focus(pane)` on a pane in another session switches to that
    session by itself. A parked pane needs `cx.sessions:switch(session)` then
@@ -141,3 +177,15 @@ report OSC 9;4 progress), where the docs don't settle them:
 8. Two windows run a VM each. Both read and write the same memory in
    `tern.kv`, so they build the same view; each sets the canvas when its own
    last-sent copy differs.
+9. `agent_state` fires within the fake agent's 0.2 s poll of a state change,
+   and with `old = nil` for a new agent. `agent_finished` comes just before
+   the `agent_state` of the same turn end.
+10. `cx.layout:move(pane, target, "right", { focus = false })` moves a pane
+    across tabs and sessions and keeps the shown focus; across hosts it
+    returns false. The moved pane takes half of the target's place.
+11. `cx.session:layout` shows a move or a resize within the same call.
+12. A canvas `ratio` is its share of the pane it splits, not of the tab.
+13. Unparking from a click on the canvas deals the agent beside the tab's
+    focused block, not beside the canvas.
+14. `cx.layout:resize(pane, dir, n)` works on a tab that isn't shown, and
+    clamps at the smallest pane size instead of failing.
