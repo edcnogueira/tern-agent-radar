@@ -1,7 +1,8 @@
 --!strict
 -- The radar's model, without `tern`: what each agent's row says, which
--- section it sits in and in what order. `window.luau` feeds it
--- `cx.agents:list()` and the session names; tests run it under plain `luau`.
+-- section it sits in and in what order, and where the radar's own pane sits
+-- in a tab's split tree. `window.luau` feeds it `cx.agents:list()`, the
+-- session names and `cx.session:layout`; tests run it under plain `luau`.
 
 local radar = {}
 
@@ -85,6 +86,10 @@ export type Input = {
 	group: string, -- "status" or "session"
 	filter: string?, -- nil, "wait", "work", "done" or "idle"
 }
+
+-- A tab's split tree, as `cx.session:layout` gives it: a pane at a leaf, else
+-- `[1]` left or top and `[2]` right or bottom of `split`, `[1]` taking `ratio`.
+export type Tree = { pane: number?, split: string?, ratio: number?, [number]: Tree }
 
 -- Section order and looks in status grouping.
 local SECTIONS = {
@@ -476,6 +481,61 @@ function radar.picks(model: Model): { Pick }
 		})
 	end
 	return picks
+end
+
+-- `pane`'s share of the width of the tab `tree` lays out, and the side its
+-- divider is on ("left" or "right": the way it grows). The share is nil when
+-- the tree doesn't hold the pane; the side is nil when the pane is in no
+-- side-by-side split, so it is as wide as the tab.
+function radar.share(tree: Tree, pane: number): (number?, string?)
+	if tree.pane ~= nil then
+		return if tree.pane == pane then 1 else nil, nil
+	end
+	for i = 1, 2 do
+		local child = tree[i]
+		if child then
+			local share, side = radar.share(child, pane)
+			if share then
+				if tree.split == "right" then
+					local ratio = tree.ratio or 0.5
+					share *= if i == 1 then ratio else 1 - ratio
+					side = side or (if i == 1 then "right" else "left")
+				end
+				return share, side
+			end
+		end
+	end
+	return nil, nil
+end
+
+-- The pane at the right edge of the tab `tree` lays out, where the radar
+-- docks: the right side of each side-by-side split and, where panes stack,
+-- the one holding `focus` (else the top one).
+function radar.edge(tree: Tree, focus: number?): number?
+	local node: Tree? = tree
+	while node and node.pane == nil do
+		local below = node[2]
+		if node.split == "right" or (focus and below and radar.share(below, focus)) then
+			node = below
+		else
+			node = node[1]
+		end
+	end
+	return if node then node.pane else nil
+end
+
+-- The tree's panes and splits without their ratios: the same text for as
+-- long as only dividers move.
+function radar.shape(tree: Tree): string
+	if tree.pane ~= nil then
+		return tostring(tree.pane)
+	end
+	local first, second = tree[1], tree[2]
+	return "("
+		.. (if first then radar.shape(first) else "")
+		.. (if tree.split == "right" then "|" else "/")
+		.. (if second then radar.shape(second) else "")
+		.. ")"
 end
 
 return radar

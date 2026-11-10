@@ -240,6 +240,45 @@ do
 	check("pick located detail", picks[1].detail, "1m")
 end
 
+-- The radar's place in a tab: [1 | [2 / [3 | 9]]], the radar is pane 9.
+do
+	local function leaf(pane: number): any
+		return { pane = pane }
+	end
+	local function split(dir: string, ratio: number, first: any, second: any): any
+		return { split = dir, ratio = ratio, first, second }
+	end
+	local function tab(ratio: number): any
+		return split("right", 0.5, leaf(1), split("down", 0.3, leaf(2), split("right", ratio, leaf(3), leaf(9))))
+	end
+	local tree = tab(0.75)
+
+	-- A width is the product of the side-by-side splits; stacked ones don't narrow a pane.
+	local share, side = radar.share(tree, 9)
+	check("share nested", share, 0.125)
+	check("side at the right of its split", side, "left")
+	share, side = radar.share(tree, 3)
+	check("share first of a split", share, 0.375)
+	check("side at the left of its split", side, "right")
+	share, side = radar.share(tree, 2)
+	check("share stacked is its column's", share, 0.5)
+	check("side stacked is its column's", side, "left")
+	check("share of a pane elsewhere", radar.share(tree, 7), nil)
+	share, side = radar.share(split("down", 0.5, leaf(1), leaf(9)), 9)
+	check("share full width", share, 1)
+	check("no side at full width", side, nil)
+
+	-- The dock target: the right edge, through the stack by way of the focused pane.
+	check("edge follows focus down", radar.edge(tree, 3), 9)
+	check("edge takes the top unfocused", radar.edge(tree, 1), 2)
+	check("edge of one pane", radar.edge(leaf(4), nil), 4)
+
+	-- A dragged divider keeps the shape; a pane leaving changes it.
+	check("shape ignores ratios", radar.shape(tree), radar.shape(tab(0.6)))
+	check("shape", radar.shape(tree), "(1|(2/(3|9)))")
+	check("shape without a pane", radar.shape(split("right", 0.5, leaf(1), split("down", 0.3, leaf(2), leaf(9)))), "(1|(2/9))")
+end
+
 -- Helpers.
 check("duration under a minute", radar.duration(59), "<1m")
 check("duration minute boundary", radar.duration(60), "1m")
